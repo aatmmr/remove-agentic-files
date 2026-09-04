@@ -1,0 +1,68 @@
+name: 'Remove agentic files'
+description: >-
+  Remove agentic files, for example AGENTS.md, CLAUDE.md or .cursor/, from a
+  checked out repository. The action works on Linux, Windows and macOS.
+author: 'aatmmr'
+
+branding:
+  icon: 'trash-2'
+  color: 'purple'
+
+inputs:
+  agents:
+    description: >-
+      Coding agents whose built-in pattern list the action uses. Separate the
+      keys with a comma or a line break. Use "all" to select every known agent.
+      Known keys: agents, aider, amazonq, claude, cline, codex, continue,
+      copilot, cursor, gemini, junie, kiro, opencode, roo, windsurf.
+      The default is empty, so the action removes nothing without a selection.
+    required: false
+    default: ''
+  patterns:
+    description: >-
+      Additional glob patterns, one per line. A line that starts with "#" is a
+      comment. A line that starts with "!" protects its matches. The action does
+      not add a recursion. Write "**/AGENTS.md" for a recursive search.
+    required: false
+    default: ''
+  config:
+    description: >-
+      Path to a plain text file with one glob pattern per line. The action
+      resolves a relative path against GITHUB_WORKSPACE. The action fails if the
+      path is set but the file does not exist.
+    required: false
+    default: ''
+  working-directory:
+    description: >-
+      Root of the search. The action resolves a relative path against
+      GITHUB_WORKSPACE.
+    required: false
+    default: '.'
+  dry-run:
+    description: 'Report the matches, but delete nothing.'
+    required: false
+    default: 'false'
+  fail-on-no-match:
+    description: 'Fail if a pattern finds no match.'
+    required: false
+    default: 'false'
+  follow-symbolic-links:
+    description: 'Follow a symbolic link during the search.'
+    required: false
+    default: 'false'
+  summary:
+    description: >-
+      Location of the report. Use "inline" for the step log, "job-summary" for
+      the job summary page, or "none" for no report.
+    required: false
+    default: 'inline'
+
+outputs:
+  deleted-files:
+    description: 'JSON array with every deleted path, relative to the search root.'
+  deleted-count:
+    description: 'Number of the deleted paths.'
+
+runs:
+  using: 'node24'
+  main: 'dist/index.js'
