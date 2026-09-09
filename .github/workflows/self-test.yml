@@ -98,12 +98,27 @@ jobs:
         uses: ./
         with:
           agents: copilot, claude, cursor
+          config: fixture/.agentic-files
           working-directory: fixture
           summary: inline
 
       - name: The second run must report no deletion
         run: |
           test "${{ steps.again.outputs.deleted-count }}" -eq 0
+          test -f fixture/vendor/AGENTS.md
+
+      - name: A run without the protection must remove the vendor file
+        id: vendor
+        uses: ./
+        with:
+          patterns: '**/AGENTS.md'
+          working-directory: fixture
+          summary: none
+
+      - name: The vendor file must be gone
+        run: |
+          test "${{ steps.vendor.outputs.deleted-count }}" -eq 1
+          test ! -e fixture/vendor/AGENTS.md
 
       - name: An unknown agent key must fail the action
         id: bad-agent
@@ -130,9 +145,28 @@ jobs:
           patterns: ../README.md
           working-directory: fixture
 
-      - name: The three error cases must fail
+      - name: A missing config file must fail the action
+        id: bad-config
+        continue-on-error: true
+        uses: ./
+        with:
+          config: fixture/does-not-exist.txt
+          working-directory: fixture
+
+      - name: fail-on-no-match must fail the action
+        id: no-match
+        continue-on-error: true
+        uses: ./
+        with:
+          patterns: does-not-exist.md
+          working-directory: fixture
+          fail-on-no-match: true
+
+      - name: The five error cases must fail
         run: |
           test "${{ steps.bad-agent.outcome }}" = failure
           test "${{ steps.bad-summary.outcome }}" = failure
           test "${{ steps.bad-pattern.outcome }}" = failure
+          test "${{ steps.bad-config.outcome }}" = failure
+          test "${{ steps.no-match.outcome }}" = failure
           test -f fixture/README.md
