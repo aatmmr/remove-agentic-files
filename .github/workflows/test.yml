@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  self-test:
+  test:
     name: Self test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
