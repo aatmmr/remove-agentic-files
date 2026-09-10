@@ -7,9 +7,10 @@ import {
   parseSummaryMode,
   readConfigFile,
   resolvePath,
+  resolveWorkspacePath,
 } from '../src/inputs.js';
 import { patternsForAgents } from '../src/agents.js';
-import { makeFixture } from './helpers.js';
+import { makeFixture, makeLink } from './helpers.js';
 
 const roots: string[] = [];
 
@@ -61,6 +62,41 @@ describe('resolvePath', () => {
   it('keeps an absolute path', () => {
     const absolute = process.platform === 'win32' ? 'C:\\work' : '/work';
     expect(resolvePath('/base', absolute)).toBe(path.normalize(absolute));
+  });
+});
+
+describe('resolveWorkspacePath', () => {
+  it('accepts the workspace and paths below it', async () => {
+    const root = await fixture({ 'config/patterns.txt': 'AGENTS.md\n' });
+
+    await expect(resolveWorkspacePath(root, '.', 'working-directory')).resolves.toBe(
+      path.resolve(root),
+    );
+    await expect(resolveWorkspacePath(root, 'config/patterns.txt', 'config')).resolves.toBe(
+      path.join(root, 'config/patterns.txt'),
+    );
+  });
+
+  it('rejects traversal and absolute paths outside the workspace', async () => {
+    const root = await fixture({ 'config.txt': 'AGENTS.md\n' });
+    const outside = path.resolve(root, '..', 'outside.txt');
+
+    await expect(resolveWorkspacePath(root, '../outside.txt', 'config')).rejects.toThrow(
+      /inside GITHUB_WORKSPACE/,
+    );
+    await expect(resolveWorkspacePath(root, outside, 'config')).rejects.toThrow(
+      /inside GITHUB_WORKSPACE/,
+    );
+  });
+
+  it('rejects an existing symbolic link that escapes the workspace', async () => {
+    const root = await fixture({ 'keep.md': 'a' });
+    const outside = await fixture({ 'patterns.txt': 'AGENTS.md\n' });
+    await makeLink(root, 'config.txt', path.join(outside, 'patterns.txt'));
+
+    await expect(resolveWorkspacePath(root, 'config.txt', 'config')).rejects.toThrow(
+      /symbolic link outside GITHUB_WORKSPACE/,
+    );
   });
 });
 

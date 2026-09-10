@@ -103,21 +103,23 @@ patterns, and then the `patterns` input. It removes a duplicate pattern.
     agents: all
     dry-run: true
 
-- run: echo "The action would remove ${{ steps.preview.outputs.deleted-count }} paths."
+- env:
+    DELETED_COUNT: ${{ steps.preview.outputs.deleted-count }}
+  run: printf 'The action would remove %s paths.\n' "$DELETED_COUNT"
 ```
 
 ## Inputs
 
-| Input                   | Default  | Function                                                                                                                                                                                   |
-| ----------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `agents`                | `''`     | Coding agents whose built-in pattern list the action uses. Separate the keys with a comma or a line break. Use `all` for every known agent.                                                |
-| `patterns`              | `''`     | Additional glob patterns, one per line. `#` starts a comment. `!` protects the matches of the pattern.                                                                                     |
-| `config`                | `''`     | Path to a plain text file with one glob pattern per line. The action resolves a relative path against `GITHUB_WORKSPACE`. The action fails if the path is set but the file does not exist. |
-| `working-directory`     | `.`      | Root of the search. The action resolves a relative path against `GITHUB_WORKSPACE`.                                                                                                        |
-| `dry-run`               | `false`  | Report the matches, but delete nothing.                                                                                                                                                    |
-| `fail-on-no-match`      | `false`  | Fail if a pattern finds no match.                                                                                                                                                          |
-| `follow-symbolic-links` | `false`  | Follow a symbolic link during the search.                                                                                                                                                  |
-| `summary`               | `inline` | Location of the report. Use `inline`, `job-summary` or `none`.                                                                                                                             |
+| Input                   | Default  | Function                                                                                                                                                                   |
+| ----------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agents`                | `''`     | Coding agents whose built-in pattern list the action uses. Separate the keys with a comma or a line break. Use `all` for every known agent.                                |
+| `patterns`              | `''`     | Additional glob patterns, one per line. `#` starts a comment. `!` protects the matches of the pattern.                                                                     |
+| `config`                | `''`     | Path to a plain text file with one glob pattern per line. The path must remain inside `GITHUB_WORKSPACE`. The action fails if the path is set but the file does not exist. |
+| `working-directory`     | `.`      | Root of the search. The path must remain inside `GITHUB_WORKSPACE`.                                                                                                        |
+| `dry-run`               | `false`  | Report the matches, but delete nothing.                                                                                                                                    |
+| `fail-on-no-match`      | `false`  | Fail if a pattern finds no match.                                                                                                                                          |
+| `follow-symbolic-links` | `false`  | Follow a symbolic link during the search.                                                                                                                                  |
+| `summary`               | `inline` | Location of the report. Use `inline`, `job-summary` or `none`.                                                                                                             |
 
 ## Outputs
 
@@ -132,9 +134,12 @@ patterns, and then the `patterns` input. It removes a duplicate pattern.
   with:
     agents: all
 
-- run: |
-    echo "Count: ${{ steps.clean.outputs.deleted-count }}"
-    echo "Files: ${{ steps.clean.outputs.deleted-files }}"
+- env:
+    DELETED_COUNT: ${{ steps.clean.outputs.deleted-count }}
+    DELETED_FILES: ${{ steps.clean.outputs.deleted-files }}
+  run: |
+    printf 'Count: %s\n' "$DELETED_COUNT"
+    printf 'Files: %s\n' "$DELETED_FILES"
 ```
 
 ## The report
@@ -191,6 +196,8 @@ and `**/CLAUDE.md`.
 
 - A pattern must stay inside the search root. An absolute pattern, a pattern with `..`, and a
   pattern that starts with `~` fail the action.
+- The `working-directory` and `config` inputs must remain inside `GITHUB_WORKSPACE`, including after
+  the action resolves symbolic links.
 - The action resolves the real path of each match. If the path is outside of the search root, the
   action stops.
 - The action never deletes the search root.

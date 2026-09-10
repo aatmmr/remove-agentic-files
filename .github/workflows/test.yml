@@ -13,6 +13,7 @@ jobs:
   test:
     name: Self test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -21,7 +22,10 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v7
+      # actions/checkout v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Make the fixture tree
         run: |
@@ -52,11 +56,13 @@ jobs:
           summary: none
 
       - name: The dry run must keep every file
+        env:
+          DELETED_COUNT: ${{ steps.dry.outputs.deleted-count }}
         run: |
           test -f fixture/AGENTS.md
           test -f fixture/CLAUDE.md
           test -d fixture/.cursor
-          test "${{ steps.dry.outputs.deleted-count }}" -gt 0
+          test "$DELETED_COUNT" -gt 0
 
       - name: Run the action
         id: clean
@@ -86,12 +92,15 @@ jobs:
           test -f fixture/vendor/AGENTS.md
 
       - name: The outputs must report the deletion
+        env:
+          DELETED_COUNT: ${{ steps.clean.outputs.deleted-count }}
+          DELETED_FILES: ${{ steps.clean.outputs.deleted-files }}
         run: |
-          echo "count: ${{ steps.clean.outputs.deleted-count }}"
-          echo '${{ steps.clean.outputs.deleted-files }}'
-          test "${{ steps.clean.outputs.deleted-count }}" -eq 7
-          echo '${{ steps.clean.outputs.deleted-files }}' | grep -q '"AGENTS.md"'
-          echo '${{ steps.clean.outputs.deleted-files }}' | grep -q '".cursor"'
+          printf 'count: %s\n' "$DELETED_COUNT"
+          printf '%s\n' "$DELETED_FILES"
+          test "$DELETED_COUNT" -eq 7
+          grep -q '"AGENTS.md"' <<< "$DELETED_FILES"
+          grep -q '".cursor"' <<< "$DELETED_FILES"
 
       - name: A second run must find nothing
         id: again
@@ -103,8 +112,10 @@ jobs:
           summary: inline
 
       - name: The second run must report no deletion
+        env:
+          DELETED_COUNT: ${{ steps.again.outputs.deleted-count }}
         run: |
-          test "${{ steps.again.outputs.deleted-count }}" -eq 0
+          test "$DELETED_COUNT" -eq 0
           test -f fixture/vendor/AGENTS.md
 
       - name: A run without the protection must remove the vendor file
@@ -116,8 +127,10 @@ jobs:
           summary: none
 
       - name: The vendor file must be gone
+        env:
+          DELETED_COUNT: ${{ steps.vendor.outputs.deleted-count }}
         run: |
-          test "${{ steps.vendor.outputs.deleted-count }}" -eq 1
+          test "$DELETED_COUNT" -eq 1
           test ! -e fixture/vendor/AGENTS.md
 
       - name: An unknown agent key must fail the action

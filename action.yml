@@ -28,14 +28,15 @@ inputs:
   config:
     description: >-
       Path to a plain text file with one glob pattern per line. The action
-      resolves a relative path against GITHUB_WORKSPACE. The action fails if the
-      path is set but the file does not exist.
+      resolves a relative path against GITHUB_WORKSPACE and requires the path to
+      remain inside it. The action fails if the path is set but the file does not
+      exist.
     required: false
     default: ''
   working-directory:
     description: >-
       Root of the search. The action resolves a relative path against
-      GITHUB_WORKSPACE.
+      GITHUB_WORKSPACE and requires the path to remain inside it.
     required: false
     default: '.'
   dry-run:

@@ -43,6 +43,44 @@ export function resolvePath(base: string, value: string): string {
   return path.isAbsolute(trimmed) ? path.normalize(trimmed) : path.resolve(base, trimmed);
 }
 
+/** True if a path is the parent itself or is below it. */
+function isInsideOrEqual(parent: string, target: string): boolean {
+  const relative = path.relative(parent, target);
+  return relative.length === 0 || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/**
+ * Resolve an input path and require it to remain inside the workspace.
+ *
+ * Existing paths are also checked after resolving symbolic links.
+ */
+export async function resolveWorkspacePath(
+  workspace: string,
+  value: string,
+  inputName: string,
+): Promise<string> {
+  const base = path.resolve(workspace);
+  const resolved = resolvePath(base, value);
+  if (!isInsideOrEqual(base, resolved)) {
+    throw new Error(`The ${inputName} input must resolve inside GITHUB_WORKSPACE "${base}".`);
+  }
+
+  try {
+    const [realBase, realTarget] = await Promise.all([fs.realpath(base), fs.realpath(resolved)]);
+    if (!isInsideOrEqual(realBase, realTarget)) {
+      throw new Error(
+        `The ${inputName} input resolves through a symbolic link outside GITHUB_WORKSPACE "${realBase}".`,
+      );
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
+  }
+
+  return resolved;
+}
+
 /** Check the value of the `summary` input. */
 export function parseSummaryMode(value: string): SummaryMode {
   const normalized = value.trim().toLowerCase() || 'inline';
@@ -103,12 +141,16 @@ export async function readConfigFile(file: string): Promise<string> {
 /** Read and check every input of the action. */
 export async function readInputs(): Promise<ActionInputs> {
   const base = workspaceRoot();
-  const root = resolvePath(base, core.getInput('working-directory') || '.');
+  const root = await resolveWorkspacePath(
+    base,
+    core.getInput('working-directory') || '.',
+    'working-directory',
+  );
 
   const configInput = core.getInput('config').trim();
   let configText = '';
   if (configInput.length > 0) {
-    const configFile = resolvePath(base, configInput);
+    const configFile = await resolveWorkspacePath(base, configInput, 'config');
     configText = await readConfigFile(configFile);
     core.info(`Read the pattern list from "${configFile}".`);
   }
