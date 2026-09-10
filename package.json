@@ -1,0 +1,41 @@
+{
+  "name": "remove-agentic-files",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitHub Action that removes agentic files from a checked out repository.",
+  "main": "dist/index.js",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "all": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "keywords": [
+    "actions",
+    "agentic",
+    "cleanup"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^3.0.1",
+    "@actions/glob": "^0.7.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@types/node": "^24.0.0",
+    "@vercel/ncc": "^0.38.3",
+    "eslint": "^9.20.0",
+    "prettier": "^3.5.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.24.0",
+    "vitest": "^5.0.0"
+  }
+}
