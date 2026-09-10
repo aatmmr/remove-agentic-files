@@ -195,6 +195,59 @@ describe('removeAgenticFiles', () => {
     expect(await exists(path.join(root, 'real/notes.md'))).toBe(true);
   });
 
+  it('removes a broken symbolic link', async () => {
+    const root = await fixture({ 'real/notes.md': 'a' });
+    await makeLink(root, 'AGENTS.md', path.join(root, 'real', 'notes.md'));
+    await rm(path.join(root, 'real/notes.md'));
+
+    const result = await removeAgenticFiles({ root, patterns: ['AGENTS.md'] });
+
+    expect(result.deleted).toEqual(['AGENTS.md']);
+    expect(await exists(path.join(root, 'AGENTS.md'))).toBe(false);
+  });
+
+  it('keeps a directory that contains a protected .git descendant', async () => {
+    const root = await fixture({
+      'vendor/.git/config': 'a',
+      'vendor/.git/HEAD': 'b',
+      'vendor/AGENTS.md': 'c',
+    });
+
+    const result = await removeAgenticFiles({ root, patterns: ['vendor/'] });
+
+    expect(result.deleted).toEqual([]);
+    expect(result.patterns[0]?.skipped).toEqual([
+      {
+        path: 'vendor',
+        reason: 'the directory contains protected matches from a negation pattern or a ".git" segment',
+      },
+    ]);
+    expect(await exists(path.join(root, 'vendor/.git/config'))).toBe(true);
+    expect(await exists(path.join(root, 'vendor/AGENTS.md'))).toBe(true);
+  });
+
+  it('keeps a directory that contains negation matches', async () => {
+    const root = await fixture({
+      'vendor/keep/AGENTS.md': 'a',
+      'vendor/remove/AGENTS.md': 'b',
+    });
+
+    const result = await removeAgenticFiles({
+      root,
+      patterns: ['vendor/', '!vendor/keep/**'],
+    });
+
+    expect(result.deleted).toEqual([]);
+    expect(result.patterns[0]?.skipped).toEqual([
+      {
+        path: 'vendor',
+        reason: 'the directory contains protected matches from a negation pattern or a ".git" segment',
+      },
+    ]);
+    expect(await exists(path.join(root, 'vendor/keep/AGENTS.md'))).toBe(true);
+    expect(await exists(path.join(root, 'vendor/remove/AGENTS.md'))).toBe(true);
+  });
+
   it('reports the kept paths of the .git guard', async () => {
     const root = await fixture({ '.git/AGENTS.md': 'a' });
 

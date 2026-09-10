@@ -67,8 +67,13 @@ describe('buildRows and renderTextTable', () => {
 
   it('aligns the columns', () => {
     const lines = renderTextTable(buildRows(makeResult())).split('\n');
-    expect(lines[0]).toBe('Pattern       Matches  Result');
-    expect(lines[2]).toBe('**/AGENTS.md        1  1 removed');
+    expect(lines[0]).toBe(' Pattern       Matches  Result');
+    expect(lines[2]).toBe(' **/AGENTS.md        1  1 removed');
+  });
+
+  it('prefixes lines so a pattern cannot start a workflow command', () => {
+    const table = renderTextTable([{ pattern: '::warning::forged', matches: '1', result: '1 removed' }]);
+    expect(table).toContain(' ::warning::forged');
   });
 });
 

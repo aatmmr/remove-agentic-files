@@ -134,14 +134,16 @@ export function resolveAgentKeys(input: string): string[] {
     return [];
   }
 
-  if (tokens.some((token) => token.toLowerCase() === ALL_AGENTS)) {
-    return agentKeys();
-  }
-
   const keys: string[] = [];
   const unknown: string[] = [];
+  let wantsAll = false;
 
   for (const token of tokens) {
+    if (token.toLowerCase() === ALL_AGENTS) {
+      wantsAll = true;
+      continue;
+    }
+
     const key = canonicalAgentKey(token);
     if (!key) {
       unknown.push(token);
@@ -155,6 +157,10 @@ export function resolveAgentKeys(input: string): string[] {
       `Unknown agent ${unknown.length === 1 ? 'key' : 'keys'}: ${unknown.join(', ')}. ` +
         `Known keys are: ${agentKeys().join(', ')}, ${ALL_AGENTS}.`,
     );
+  }
+
+  if (wantsAll) {
+    return agentKeys();
   }
 
   return keys;

@@ -42,9 +42,9 @@ export function renderTextTable(rows: readonly ReportRow[]): string {
   const widthMatches = Math.max(...all.map((row) => row.matches.length));
 
   const line = (row: ReportRow): string =>
-    `${row.pattern.padEnd(widthPattern)}  ${row.matches.padStart(widthMatches)}  ${row.result}`;
+    ` ${row.pattern.padEnd(widthPattern)}  ${row.matches.padStart(widthMatches)}  ${row.result}`;
 
-  const separator = `${'-'.repeat(widthPattern)}  ${'-'.repeat(widthMatches)}  ------`;
+  const separator = ` ${'-'.repeat(widthPattern)}  ${'-'.repeat(widthMatches)}  ------`;
   return [line(header), separator, ...rows.map(line)].join('\n');
 }
 

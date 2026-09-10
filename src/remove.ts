@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as core from '@actions/core';
 import * as glob from '@actions/glob';
-import { assertRelativePattern, splitPatterns, toAbsolutePattern } from './patterns.js';
+import { assertRelativePattern, splitPatterns, stripNegation, toAbsolutePattern } from './patterns.js';
 
 /** Result of one search pattern. */
 export interface PatternResult {
@@ -82,6 +82,65 @@ async function resolveKeepLink(target: string): Promise<string | undefined> {
   }
 }
 
+/** True if the relative path contains the protected segment. */
+function containsProtectedSegment(relativePath: string): boolean {
+  return relativePath.split('/').includes(PROTECTED_SEGMENT);
+}
+
+/** Find every path that a negation pattern protects. */
+async function collectExcludedPaths(
+  root: string,
+  patterns: readonly string[],
+  followSymbolicLinks: boolean,
+): Promise<Set<string>> {
+  const excluded = new Set<string>();
+
+  for (const pattern of patterns) {
+    const globber = await glob.create(stripNegation(pattern), {
+      followSymbolicLinks,
+      implicitDescendants: false,
+      matchDirectories: true,
+      omitBrokenSymbolicLinks: false,
+    });
+    const matches = await globber.glob();
+    for (const match of matches) {
+      const resolved = await resolveKeepLink(match);
+      if (resolved && isInside(root, resolved)) {
+        excluded.add(resolved);
+      }
+    }
+  }
+
+  return excluded;
+}
+
+/** True if an excluded path is equal to `target` or below it. */
+function hasExcludedDescendant(target: string, excluded: ReadonlySet<string>): boolean {
+  for (const candidate of excluded) {
+    if (candidate === target || isInside(target, candidate)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** True if the directory tree contains a protected segment. */
+async function hasProtectedDescendant(target: string): Promise<boolean> {
+  const entries = await fs.readdir(target, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name === PROTECTED_SEGMENT) {
+      return true;
+    }
+    if (entry.isDirectory()) {
+      const found = await hasProtectedDescendant(path.join(target, entry.name));
+      if (found) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /** Delete a file, a directory or a symbolic link. */
 async function deletePath(target: string): Promise<void> {
   try {
@@ -124,6 +183,7 @@ export async function removeAgenticFiles(options: RemoveOptions): Promise<Remove
 
   const { includes, excludes } = splitPatterns(options.patterns);
   const absoluteExcludes = excludes.map((pattern) => toAbsolutePattern(root, pattern));
+  const excludedPaths = await collectExcludedPaths(root, absoluteExcludes, followSymbolicLinks);
 
   const results: PatternResult[] = [];
   const deleted: string[] = [];
@@ -138,7 +198,7 @@ export async function removeAgenticFiles(options: RemoveOptions): Promise<Remove
       followSymbolicLinks,
       implicitDescendants: false,
       matchDirectories: true,
-      omitBrokenSymbolicLinks: true,
+      omitBrokenSymbolicLinks: false,
     });
     const matches = (await globber.glob()).sort();
 
@@ -158,7 +218,7 @@ export async function removeAgenticFiles(options: RemoveOptions): Promise<Remove
       const relative = toRelativePosix(root, resolved);
       result.matches.push(relative);
 
-      if (relative.split('/').includes(PROTECTED_SEGMENT)) {
+      if (containsProtectedSegment(relative)) {
         result.skipped.push({ path: relative, reason: `the path contains "${PROTECTED_SEGMENT}"` });
         core.warning(`Kept "${relative}", because the path contains "${PROTECTED_SEGMENT}".`);
         continue;
@@ -170,7 +230,24 @@ export async function removeAgenticFiles(options: RemoveOptions): Promise<Remove
       handled.add(resolved);
 
       try {
-        await fs.lstat(resolved);
+        const stats = await fs.lstat(resolved);
+
+        if (
+          stats.isDirectory() &&
+          !stats.isSymbolicLink() &&
+          (hasExcludedDescendant(resolved, excludedPaths) || (await hasProtectedDescendant(resolved)))
+        ) {
+          result.skipped.push({
+            path: relative,
+            reason:
+              'the directory contains protected matches from a negation pattern or a ".git" segment',
+          });
+          core.warning(
+            `Kept "${relative}", because it contains protected matches from a negation pattern ` +
+              `or a "${PROTECTED_SEGMENT}" segment.`,
+          );
+          continue;
+        }
       } catch (error) {
         if (isNotFound(error)) {
           result.skipped.push({ path: relative, reason: 'the path was already removed' });

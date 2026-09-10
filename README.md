@@ -171,7 +171,7 @@ The action uses [`@actions/glob`](https://github.com/actions/toolkit/tree/main/p
 | Element      | Function                                            |
 | ------------ | --------------------------------------------------- |
 | `*`          | Any characters inside one path segment.             |
-| `**`         | Any characters across more than one path segment.   |
+| `**`         | Any characters across zero or more path segments.   |
 | `?`          | One character.                                      |
 | `[abc]`      | One character from the set.                         |
 | trailing `/` | The pattern matches a directory only.               |

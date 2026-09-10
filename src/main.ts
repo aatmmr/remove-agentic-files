@@ -24,7 +24,7 @@ export async function run(): Promise<void> {
 
   core.startGroup(`Patterns (${inputs.patterns.length})`);
   for (const pattern of inputs.patterns) {
-    core.info(pattern);
+    core.info(`- ${pattern}`);
   }
   core.endGroup();
 

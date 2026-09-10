@@ -23,6 +23,10 @@ describe('agents', () => {
     expect(resolveAgentKeys('claude, all')).toEqual(agentKeys());
   });
 
+  it('fails on unknown keys even when all is set', () => {
+    expect(() => resolveAgentKeys('all, typo')).toThrow(/Unknown agent key: typo/);
+  });
+
   it('accepts an alias and a capital letter', () => {
     expect(resolveAgentKeys('GitHub-Copilot')).toEqual(['copilot']);
     expect(canonicalAgentKey('claude-code')).toBe('claude');

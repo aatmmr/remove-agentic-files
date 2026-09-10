@@ -31436,12 +31436,14 @@ function resolveAgentKeys(input) {
     if (tokens.length === 0) {
         return [];
     }
-    if (tokens.some((token) => token.toLowerCase() === ALL_AGENTS)) {
-        return agentKeys();
-    }
     const keys = [];
     const unknown = [];
+    let wantsAll = false;
     for (const token of tokens) {
+        if (token.toLowerCase() === ALL_AGENTS) {
+            wantsAll = true;
+            continue;
+        }
         const key = canonicalAgentKey(token);
         if (!key) {
             unknown.push(token);
@@ -31453,6 +31455,9 @@ function resolveAgentKeys(input) {
     if (unknown.length > 0) {
         throw new Error(`Unknown agent ${unknown.length === 1 ? 'key' : 'keys'}: ${unknown.join(', ')}. ` +
             `Known keys are: ${agentKeys().join(', ')}, ${ALL_AGENTS}.`);
+    }
+    if (wantsAll) {
+        return agentKeys();
     }
     return keys;
 }
@@ -35198,6 +35203,55 @@ async function resolveKeepLink(target) {
         throw error;
     }
 }
+/** True if the relative path contains the protected segment. */
+function containsProtectedSegment(relativePath) {
+    return relativePath.split('/').includes(PROTECTED_SEGMENT);
+}
+/** Find every path that a negation pattern protects. */
+async function collectExcludedPaths(root, patterns, followSymbolicLinks) {
+    const excluded = new Set();
+    for (const pattern of patterns) {
+        const globber = await create(stripNegation(pattern), {
+            followSymbolicLinks,
+            implicitDescendants: false,
+            matchDirectories: true,
+            omitBrokenSymbolicLinks: false,
+        });
+        const matches = await globber.glob();
+        for (const match of matches) {
+            const resolved = await resolveKeepLink(match);
+            if (resolved && isInside(root, resolved)) {
+                excluded.add(resolved);
+            }
+        }
+    }
+    return excluded;
+}
+/** True if an excluded path is equal to `target` or below it. */
+function hasExcludedDescendant(target, excluded) {
+    for (const candidate of excluded) {
+        if (candidate === target || isInside(target, candidate)) {
+            return true;
+        }
+    }
+    return false;
+}
+/** True if the directory tree contains a protected segment. */
+async function hasProtectedDescendant(target) {
+    const entries = await promises_namespaceObject.readdir(target, { withFileTypes: true });
+    for (const entry of entries) {
+        if (entry.name === PROTECTED_SEGMENT) {
+            return true;
+        }
+        if (entry.isDirectory()) {
+            const found = await hasProtectedDescendant(external_node_path_namespaceObject.join(target, entry.name));
+            if (found) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 /** Delete a file, a directory or a symbolic link. */
 async function deletePath(target) {
     try {
@@ -35237,6 +35291,7 @@ async function removeAgenticFiles(options) {
     }
     const { includes, excludes } = splitPatterns(options.patterns);
     const absoluteExcludes = excludes.map((pattern) => toAbsolutePattern(root, pattern));
+    const excludedPaths = await collectExcludedPaths(root, absoluteExcludes, followSymbolicLinks);
     const results = [];
     const deleted = [];
     const handled = new Set();
@@ -35248,7 +35303,7 @@ async function removeAgenticFiles(options) {
             followSymbolicLinks,
             implicitDescendants: false,
             matchDirectories: true,
-            omitBrokenSymbolicLinks: true,
+            omitBrokenSymbolicLinks: false,
         });
         const matches = (await globber.glob()).sort();
         for (const match of matches) {
@@ -35262,7 +35317,7 @@ async function removeAgenticFiles(options) {
             }
             const relative = toRelativePosix(root, resolved);
             result.matches.push(relative);
-            if (relative.split('/').includes(PROTECTED_SEGMENT)) {
+            if (containsProtectedSegment(relative)) {
                 result.skipped.push({ path: relative, reason: `the path contains "${PROTECTED_SEGMENT}"` });
                 warning(`Kept "${relative}", because the path contains "${PROTECTED_SEGMENT}".`);
                 continue;
@@ -35272,7 +35327,18 @@ async function removeAgenticFiles(options) {
             }
             handled.add(resolved);
             try {
-                await promises_namespaceObject.lstat(resolved);
+                const stats = await promises_namespaceObject.lstat(resolved);
+                if (stats.isDirectory() &&
+                    !stats.isSymbolicLink() &&
+                    (hasExcludedDescendant(resolved, excludedPaths) || (await hasProtectedDescendant(resolved)))) {
+                    result.skipped.push({
+                        path: relative,
+                        reason: 'the directory contains protected matches from a negation pattern or a ".git" segment',
+                    });
+                    warning(`Kept "${relative}", because it contains protected matches from a negation pattern ` +
+                        `or a "${PROTECTED_SEGMENT}" segment.`);
+                    continue;
+                }
             }
             catch (error) {
                 if (isNotFound(error)) {
@@ -35329,8 +35395,8 @@ function renderTextTable(rows) {
     const all = [header, ...rows];
     const widthPattern = Math.max(...all.map((row) => row.pattern.length));
     const widthMatches = Math.max(...all.map((row) => row.matches.length));
-    const line = (row) => `${row.pattern.padEnd(widthPattern)}  ${row.matches.padStart(widthMatches)}  ${row.result}`;
-    const separator = `${'-'.repeat(widthPattern)}  ${'-'.repeat(widthMatches)}  ------`;
+    const line = (row) => ` ${row.pattern.padEnd(widthPattern)}  ${row.matches.padStart(widthMatches)}  ${row.result}`;
+    const separator = ` ${'-'.repeat(widthPattern)}  ${'-'.repeat(widthMatches)}  ------`;
     return [line(header), separator, ...rows.map(line)].join('\n');
 }
 /** Make the final line of the report. */
@@ -35393,7 +35459,7 @@ async function run() {
     }
     startGroup(`Patterns (${inputs.patterns.length})`);
     for (const pattern of inputs.patterns) {
-        info(pattern);
+        info(`- ${pattern}`);
     }
     endGroup();
     const result = await removeAgenticFiles({
