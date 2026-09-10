@@ -87,4 +87,10 @@ describe('toAbsolutePattern', () => {
   it('normalizes a Windows root', () => {
     expect(toAbsolutePattern('C:\\repo\\', 'AGENTS.md')).toBe('C:/repo/AGENTS.md');
   });
+
+  it('escapes glob metacharacters in the root path', () => {
+    expect(toAbsolutePattern('/tmp/repo[1]/pkg*', 'AGENTS.md')).toBe(
+      '/tmp/repo\\[1\\]/pkg\\*/AGENTS.md',
+    );
+  });
 });

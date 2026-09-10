@@ -59,6 +59,17 @@ describe('removeAgenticFiles', () => {
     expect(await exists(path.join(root, 'packages/web/keep.md'))).toBe(true);
   });
 
+  it('accepts a child path segment that starts with ".."', async () => {
+    const root = await fixture({
+      '..cache/AGENTS.md': 'a',
+      'packages/api/AGENTS.md': 'b',
+    });
+
+    const result = await removeAgenticFiles({ root, patterns: ['**/AGENTS.md'] });
+
+    expect(result.deleted).toEqual(['..cache/AGENTS.md', 'packages/api/AGENTS.md']);
+  });
+
   it('does not add a recursion to a plain file name', async () => {
     const root = await fixture({ 'AGENTS.md': 'a', 'packages/api/AGENTS.md': 'b' });
 
@@ -144,6 +155,14 @@ describe('removeAgenticFiles', () => {
     expect(await exists(path.join(root, '.git/AGENTS.md'))).toBe(true);
   });
 
+  it('fails when the search root contains a .git segment', async () => {
+    const workspace = await fixture({ '.git/config': 'a', '.git/AGENTS.md': 'b' });
+
+    await expect(
+      removeAgenticFiles({ root: path.join(workspace, '.git'), patterns: ['**/AGENTS.md'] }),
+    ).rejects.toThrow(/contains "\.git"/);
+  });
+
   it('removes a duplicate path only one time', async () => {
     const root = await fixture({ 'AGENTS.md': 'a' });
 
@@ -219,7 +238,8 @@ describe('removeAgenticFiles', () => {
     expect(result.patterns[0]?.skipped).toEqual([
       {
         path: 'vendor',
-        reason: 'the directory contains protected matches from a negation pattern or a ".git" segment',
+        reason:
+          'the directory contains protected matches from a negation pattern or a ".git" segment',
       },
     ]);
     expect(await exists(path.join(root, 'vendor/.git/config'))).toBe(true);
@@ -241,7 +261,8 @@ describe('removeAgenticFiles', () => {
     expect(result.patterns[0]?.skipped).toEqual([
       {
         path: 'vendor',
-        reason: 'the directory contains protected matches from a negation pattern or a ".git" segment',
+        reason:
+          'the directory contains protected matches from a negation pattern or a ".git" segment',
       },
     ]);
     expect(await exists(path.join(root, 'vendor/keep/AGENTS.md'))).toBe(true);

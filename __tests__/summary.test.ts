@@ -72,7 +72,9 @@ describe('buildRows and renderTextTable', () => {
   });
 
   it('prefixes lines so a pattern cannot start a workflow command', () => {
-    const table = renderTextTable([{ pattern: '::warning::forged', matches: '1', result: '1 removed' }]);
+    const table = renderTextTable([
+      { pattern: '::warning::forged', matches: '1', result: '1 removed' },
+    ]);
     expect(table).toContain(' ::warning::forged');
   });
 });

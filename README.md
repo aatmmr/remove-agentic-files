@@ -123,10 +123,10 @@ patterns, and then the `patterns` input. It removes a duplicate pattern.
 
 ## Outputs
 
-| Output          | Function                                                         |
-| --------------- | ---------------------------------------------------------------- |
-| `deleted-files` | JSON array with every deleted path, relative to the search root. |
-| `deleted-count` | Number of the deleted paths.                                     |
+| Output          | Function                                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deleted-files` | JSON array with every deleted path, relative to the search root. In dry-run mode, this output lists the paths that the action would remove. |
+| `deleted-count` | Number of deleted paths. In dry-run mode, this output is the number of paths that the action would remove.                                  |
 
 ```yaml
 - uses: aatmmr/remove-agentic-files@v1

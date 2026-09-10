@@ -46,7 +46,10 @@ export function resolvePath(base: string, value: string): string {
 /** True if a path is the parent itself or is below it. */
 function isInsideOrEqual(parent: string, target: string): boolean {
   const relative = path.relative(parent, target);
-  return relative.length === 0 || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  return (
+    relative.length === 0 ||
+    (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  );
 }
 
 /**
@@ -152,7 +155,7 @@ export async function readInputs(): Promise<ActionInputs> {
   if (configInput.length > 0) {
     const configFile = await resolveWorkspacePath(base, configInput, 'config');
     configText = await readConfigFile(configFile);
-    core.info(`Read the pattern list from "${configFile}".`);
+    core.info(`Read the pattern list from ${JSON.stringify(configFile)}.`);
   }
 
   const { agents, patterns } = collectPatterns({

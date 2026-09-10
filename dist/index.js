@@ -31565,8 +31565,9 @@ function toAbsolutePattern(root, pattern) {
     const negated = isNegated(pattern);
     const body = stripNegation(pattern);
     const normalizedRoot = root.replace(/[\\/]+$/, '').replace(/\\/g, '/');
-    const absolute = `${normalizedRoot}/${body.replace(/^[\\/]+/, '')}`;
-    return negated ? `${NEGATE_PREFIX}${absolute}` : absolute;
+    const escapedRoot = normalizedRoot.replace(/[\\*?[\]{}()+!@]/g, '\\$&');
+    const escapedAbsolute = `${escapedRoot}/${body.replace(/^[\\/]+/, '')}`;
+    return negated ? `${NEGATE_PREFIX}${escapedAbsolute}` : escapedAbsolute;
 }
 
 ;// CONCATENATED MODULE: ./src/inputs.ts
@@ -31593,7 +31594,8 @@ function resolvePath(base, value) {
 /** True if a path is the parent itself or is below it. */
 function isInsideOrEqual(parent, target) {
     const relative = external_node_path_namespaceObject.relative(parent, target);
-    return relative.length === 0 || (!relative.startsWith('..') && !external_node_path_namespaceObject.isAbsolute(relative));
+    return (relative.length === 0 ||
+        (relative !== '..' && !relative.startsWith(`..${external_node_path_namespaceObject.sep}`) && !external_node_path_namespaceObject.isAbsolute(relative)));
 }
 /**
  * Resolve an input path and require it to remain inside the workspace.
@@ -31663,7 +31665,7 @@ async function readInputs() {
     if (configInput.length > 0) {
         const configFile = await resolveWorkspacePath(base, configInput, 'config');
         configText = await readConfigFile(configFile);
-        info(`Read the pattern list from "${configFile}".`);
+        info(`Read the pattern list from ${JSON.stringify(configFile)}.`);
     }
     const { agents, patterns } = collectPatterns({
         agents: getInput('agents'),
@@ -35177,7 +35179,7 @@ function isInside(parent, child) {
     if (relative.length === 0) {
         return false;
     }
-    return !relative.startsWith('..') && !external_node_path_namespaceObject.isAbsolute(relative);
+    return relative !== '..' && !relative.startsWith(`..${external_node_path_namespaceObject.sep}`) && !external_node_path_namespaceObject.isAbsolute(relative);
 }
 /** True if the error is a "file does not exist" error. */
 function isNotFound(error) {
@@ -35206,6 +35208,13 @@ async function resolveKeepLink(target) {
 /** True if the relative path contains the protected segment. */
 function containsProtectedSegment(relativePath) {
     return relativePath.split('/').includes(PROTECTED_SEGMENT);
+}
+/** True if a path has a protected path segment. */
+function pathHasProtectedSegment(target) {
+    return external_node_path_namespaceObject.normalize(target)
+        .split(external_node_path_namespaceObject.sep)
+        .filter((segment) => segment.length > 0)
+        .includes(PROTECTED_SEGMENT);
 }
 /** Find every path that a negation pattern protects. */
 async function collectExcludedPaths(root, patterns, followSymbolicLinks) {
@@ -35285,7 +35294,14 @@ async function removeAgenticFiles(options) {
     if (!rootStats.isDirectory()) {
         throw new Error(`The search root "${options.root}" is not a directory.`);
     }
+    const lexicalRoot = external_node_path_namespaceObject.resolve(options.root);
+    if (pathHasProtectedSegment(lexicalRoot)) {
+        throw new Error(`The search root "${options.root}" contains "${PROTECTED_SEGMENT}".`);
+    }
     const root = await promises_namespaceObject.realpath(options.root);
+    if (pathHasProtectedSegment(root)) {
+        throw new Error(`The search root "${options.root}" contains "${PROTECTED_SEGMENT}".`);
+    }
     for (const pattern of options.patterns) {
         assertRelativePattern(pattern);
     }
@@ -35330,7 +35346,8 @@ async function removeAgenticFiles(options) {
                 const stats = await promises_namespaceObject.lstat(resolved);
                 if (stats.isDirectory() &&
                     !stats.isSymbolicLink() &&
-                    (hasExcludedDescendant(resolved, excludedPaths) || (await hasProtectedDescendant(resolved)))) {
+                    (hasExcludedDescendant(resolved, excludedPaths) ||
+                        (await hasProtectedDescendant(resolved)))) {
                     result.skipped.push({
                         path: relative,
                         reason: 'the directory contains protected matches from a negation pattern or a ".git" segment',
@@ -35350,13 +35367,13 @@ async function removeAgenticFiles(options) {
             if (dryRun) {
                 result.deleted.push(relative);
                 deleted.push(relative);
-                info(`Would remove "${relative}".`);
+                info(`Would remove ${JSON.stringify(relative)}.`);
                 continue;
             }
             await deletePath(resolved);
             result.deleted.push(relative);
             deleted.push(relative);
-            info(`Removed "${relative}".`);
+            info(`Removed ${JSON.stringify(relative)}.`);
         }
         if (result.matches.length === 0) {
             info(`No match for "${pattern}". The action continues with the next pattern.`);
@@ -35446,7 +35463,7 @@ async function reportResult(result, mode) {
 /** Entry point of the action. */
 async function run() {
     const inputs = await readInputs();
-    info(`Search root: ${inputs.root}`);
+    info(`Search root: ${JSON.stringify(inputs.root)}`);
     if (inputs.agents.length > 0) {
         info(`Agents: ${inputs.agents.join(', ')}`);
     }

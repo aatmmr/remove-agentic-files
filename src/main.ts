@@ -7,7 +7,7 @@ import { reportResult } from './summary.js';
 export async function run(): Promise<void> {
   const inputs = await readInputs();
 
-  core.info(`Search root: ${inputs.root}`);
+  core.info(`Search root: ${JSON.stringify(inputs.root)}`);
   if (inputs.agents.length > 0) {
     core.info(`Agents: ${inputs.agents.join(', ')}`);
   }

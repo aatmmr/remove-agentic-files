@@ -2,7 +2,12 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as core from '@actions/core';
 import * as glob from '@actions/glob';
-import { assertRelativePattern, splitPatterns, stripNegation, toAbsolutePattern } from './patterns.js';
+import {
+  assertRelativePattern,
+  splitPatterns,
+  stripNegation,
+  toAbsolutePattern,
+} from './patterns.js';
 
 /** Result of one search pattern. */
 export interface PatternResult {
@@ -54,7 +59,7 @@ function isInside(parent: string, child: string): boolean {
   if (relative.length === 0) {
     return false;
   }
-  return !relative.startsWith('..') && !path.isAbsolute(relative);
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
 /** True if the error is a "file does not exist" error. */
@@ -85,6 +90,15 @@ async function resolveKeepLink(target: string): Promise<string | undefined> {
 /** True if the relative path contains the protected segment. */
 function containsProtectedSegment(relativePath: string): boolean {
   return relativePath.split('/').includes(PROTECTED_SEGMENT);
+}
+
+/** True if a path has a protected path segment. */
+function pathHasProtectedSegment(target: string): boolean {
+  return path
+    .normalize(target)
+    .split(path.sep)
+    .filter((segment) => segment.length > 0)
+    .includes(PROTECTED_SEGMENT);
 }
 
 /** Find every path that a negation pattern protects. */
@@ -175,7 +189,14 @@ export async function removeAgenticFiles(options: RemoveOptions): Promise<Remove
   if (!rootStats.isDirectory()) {
     throw new Error(`The search root "${options.root}" is not a directory.`);
   }
+  const lexicalRoot = path.resolve(options.root);
+  if (pathHasProtectedSegment(lexicalRoot)) {
+    throw new Error(`The search root "${options.root}" contains "${PROTECTED_SEGMENT}".`);
+  }
   const root = await fs.realpath(options.root);
+  if (pathHasProtectedSegment(root)) {
+    throw new Error(`The search root "${options.root}" contains "${PROTECTED_SEGMENT}".`);
+  }
 
   for (const pattern of options.patterns) {
     assertRelativePattern(pattern);
@@ -235,7 +256,8 @@ export async function removeAgenticFiles(options: RemoveOptions): Promise<Remove
         if (
           stats.isDirectory() &&
           !stats.isSymbolicLink() &&
-          (hasExcludedDescendant(resolved, excludedPaths) || (await hasProtectedDescendant(resolved)))
+          (hasExcludedDescendant(resolved, excludedPaths) ||
+            (await hasProtectedDescendant(resolved)))
         ) {
           result.skipped.push({
             path: relative,
@@ -259,14 +281,14 @@ export async function removeAgenticFiles(options: RemoveOptions): Promise<Remove
       if (dryRun) {
         result.deleted.push(relative);
         deleted.push(relative);
-        core.info(`Would remove "${relative}".`);
+        core.info(`Would remove ${JSON.stringify(relative)}.`);
         continue;
       }
 
       await deletePath(resolved);
       result.deleted.push(relative);
       deleted.push(relative);
-      core.info(`Removed "${relative}".`);
+      core.info(`Removed ${JSON.stringify(relative)}.`);
     }
 
     if (result.matches.length === 0) {

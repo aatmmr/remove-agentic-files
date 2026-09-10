@@ -108,6 +108,7 @@ export function toAbsolutePattern(root: string, pattern: string): string {
   const negated = isNegated(pattern);
   const body = stripNegation(pattern);
   const normalizedRoot = root.replace(/[\\/]+$/, '').replace(/\\/g, '/');
-  const absolute = `${normalizedRoot}/${body.replace(/^[\\/]+/, '')}`;
-  return negated ? `${NEGATE_PREFIX}${absolute}` : absolute;
+  const escapedRoot = normalizedRoot.replace(/[\\*?[\]{}()+!@]/g, '\\$&');
+  const escapedAbsolute = `${escapedRoot}/${body.replace(/^[\\/]+/, '')}`;
+  return negated ? `${NEGATE_PREFIX}${escapedAbsolute}` : escapedAbsolute;
 }

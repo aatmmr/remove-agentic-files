@@ -60,9 +60,13 @@ inputs:
 
 outputs:
   deleted-files:
-    description: 'JSON array with every deleted path, relative to the search root.'
+    description: >-
+      JSON array with every deleted path, relative to the search root. In
+      dry-run mode, this output lists the paths that the action would remove.
   deleted-count:
-    description: 'Number of the deleted paths.'
+    description: >-
+      Number of deleted paths. In dry-run mode, this output is the number of
+      paths that the action would remove.
 
 runs:
   using: 'node24'

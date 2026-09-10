@@ -67,13 +67,19 @@ describe('resolvePath', () => {
 
 describe('resolveWorkspacePath', () => {
   it('accepts the workspace and paths below it', async () => {
-    const root = await fixture({ 'config/patterns.txt': 'AGENTS.md\n' });
+    const root = await fixture({
+      'config/patterns.txt': 'AGENTS.md\n',
+      '..config/patterns.txt': 'AGENTS.md\n',
+    });
 
     await expect(resolveWorkspacePath(root, '.', 'working-directory')).resolves.toBe(
       path.resolve(root),
     );
     await expect(resolveWorkspacePath(root, 'config/patterns.txt', 'config')).resolves.toBe(
       path.join(root, 'config/patterns.txt'),
+    );
+    await expect(resolveWorkspacePath(root, '..config/patterns.txt', 'config')).resolves.toBe(
+      path.join(root, '..config/patterns.txt'),
     );
   });
 
